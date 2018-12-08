@@ -1,4 +1,3 @@
-#include <iostream>
 #include <memory>
 #include <utility>
 #include <functional>
@@ -32,6 +31,42 @@ namespace cpp_generator {
 
     private:
         CoroutineContext * m_pCtx;
+    };
+
+    template<typename T>
+    struct Helper {
+        static inline T&& receive(T & x) {
+            return (T&&)x;
+        }
+        static inline T&& send(T & x) {
+            return (T&&)x;
+        }
+        typedef T StoreType;
+        typedef T SendType;
+    };
+
+    template<typename T>
+    struct Helper<T&> {
+        static inline T* receive(T & x) {
+            return &x;
+        }
+        static inline T& send(T * x) {
+            return *x;
+        }
+        typedef T* StoreType;
+        typedef T& SendType;
+    };
+
+    template<typename T>
+    struct Helper<T&&> {
+        static inline T&& receive(T & x) {
+            return (T&&)x;
+        }
+        static inline T&& send(T & x) {
+            return (T&&)x;
+        }
+        typedef T StoreType;
+        typedef T&& SendType;
     };
 
     template<typename T> class Generator;
@@ -68,12 +103,12 @@ namespace cpp_generator {
         }
     public:
         void operator()(T x) {
-            m_tmp = std::move(x);
+            m_tmp = Helper<T>::receive(x);
             m_coro->yield();
         }
 
     private:
-        T m_tmp;
+        typename Helper<T>::StoreType m_tmp;
         Coroutine * m_coro;
         std::function<void(Yield<T>&)> m_func;
     };
@@ -97,8 +132,8 @@ namespace cpp_generator {
             return m_yield->alive();
         }
 
-        T operator *() {
-            return std::move(m_yield->m_tmp);
+        typename Helper<T>::SendType operator *() {
+            return Helper<T>::send(m_yield->m_tmp);
         }
         void operator ++() {
             m_yield->_next();
